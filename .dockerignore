@@ -1,0 +1,7 @@
+# Ignore all
+**
+
+# Exclude
+!app/
+!requirements.txt
+!main.py
