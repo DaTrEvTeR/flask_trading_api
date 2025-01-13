@@ -1,10 +1,8 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token
-from werkzeug.security import generate_password_hash, check_password_hash
 
-from ..config.db import db
-from ..models import User
-
+from ..config.responses import INVALID_INPUT_RESPONSE
+from .auth_service import AuthService
+from ..utils.is_data_full import is_data_full
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -17,27 +15,32 @@ def register():
     **Method:** `POST`
 
     **Request Body:**
-    ```json
+    json
     {
       "username": "testuser",
       "password": "password123"
     }
-    ```
 
     **Response:**
     - `201 Created`
-    ```json
+    json
     {
       "message": "User registered successfully"
     }
-    ```
+
+    - `400 Bad Request`
+    json
+    {
+      "error": "Invalid input"
+    }
     """
     data = request.json
-    hashed_password = generate_password_hash(data["password"])
-    new_user = User(username=data["username"], password=hashed_password)
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({"message": "User registered successfully"}), 201
+    if not is_data_full(data, "username", "password"):
+        response, status = INVALID_INPUT_RESPONSE
+        return jsonify(response), status
+
+    response, status = AuthService.register_user(data["username"], data["password"])
+    return jsonify(response), status
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -64,12 +67,19 @@ def login():
     - `401 Unauthorized`
     json
     {
-      "message": "Invalid credentials"
+      "error": "Invalid credentials"
+    }
+
+    - `400 Bad Request`
+    json
+    {
+      "error": "Invalid input"
     }
     """
     data = request.json
-    user = User.query.filter_by(username=data["username"]).first()
-    if user and check_password_hash(user.password, data["password"]):
-        access_token = create_access_token(identity=str(user.id))
-        return jsonify(access_token=access_token)
-    return jsonify({"message": "Invalid credentials"}), 401
+    if not is_data_full(data, "username", "password"):
+        response, status = INVALID_INPUT_RESPONSE
+        return jsonify(response), status
+
+    response, status = AuthService.authenticate_user(data["username"], data["password"])
+    return jsonify(response), status
